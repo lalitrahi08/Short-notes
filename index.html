@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Notes Pro (IndexedDB)</title>
+<style>
+body {margin:0;font-family:sans-serif;background:#5f9cff;color:#fff;}
+header {padding:15px;text-align:center;font-size:22px;font-weight:bold;}
+.container{padding:12px}
+.card{background:rgba(255,255,255,0.15);padding:12px;border-radius:12px;margin-bottom:10px}
+button{padding:8px;border:none;border-radius:8px;background:#ff6b9d;color:#fff;margin:5px}
+input,textarea{width:100%;padding:8px;margin-top:5px;border-radius:8px;border:none}
+.hidden{display:none}
+img{max-width:100%;border-radius:10px;margin-top:8px}
+</style>
+</head>
+<body>
+<header>📚 Study Notes (No Limit)</header>
+<div class="container">
+
+<div id="home">
+<input id="subjectInput" placeholder="Add subject">
+<button onclick="addSubject()">Add</button>
+<div id="subjects"></div>
+</div>
+
+<div id="topicsPage" class="hidden">
+<button onclick="goHome()">⬅</button>
+<h3 id="topicTitle"></h3>
+<input id="topicInput" placeholder="Add topic">
+<button onclick="addTopic()">Add</button>
+<div id="topics"></div>
+</div>
+
+<div id="notesPage" class="hidden">
+<button onclick="goTopics()">⬅</button>
+<h3 id="notesTitle"></h3>
+<textarea id="noteText"></textarea>
+<input type="file" multiple accept="image/*" onchange="addImage(event)">
+<div id="status"></div>
+<button onclick="saveNote()">Save</button>
+<div id="images"></div>
+</div>
+
+</div>
+
+<script>
+let db;
+let currentSubject=null,currentTopic=null;
+
+// INIT DB
+let request=indexedDB.open("StudyDB",1);
+request.onupgradeneeded=e=>{
+  db=e.target.result;
+  db.createObjectStore("data",{keyPath:"id"});
+}
+request.onsuccess=e=>{db=e.target.result; loadAll();}
+
+function saveItem(obj){
+  let tx=db.transaction("data","readwrite");
+  tx.objectStore("data").put(obj);
+}
+
+function getAll(callback){
+  let tx=db.transaction("data","readonly");
+  let req=tx.objectStore("data").getAll();
+  req.onsuccess=()=>callback(req.result);
+}
+
+let cache={};
+
+function loadAll(){
+  getAll(res=>{
+    cache={};
+    res.forEach(x=>cache[x.id]=x);
+    renderSubjects();
+  });
+}
+
+// SUBJECT
+function renderSubjects(){
+  let box=subjects; box.innerHTML='';
+  Object.keys(cache).forEach(k=>{
+    if(cache[k].type==='subject'){
+      box.innerHTML+=`<div class='card'>${k}<br>
+      <button onclick="openSubject('${k}')">Open</button>
+      <button onclick="del('${k}')">Delete</button></div>`;
+    }
+  });
+}
+function addSubject(){
+  let v=subjectInput.value.trim(); if(!v) return;
+  saveItem({id:v,type:'subject'});
+  loadAll(); subjectInput.value='';
+}
+
+// TOPIC
+function openSubject(s){
+  currentSubject=s;
+  home.classList.add('hidden'); topicsPage.classList.remove('hidden');
+  topicTitle.innerText=s; renderTopics();
+}
+function renderTopics(){
+  let box=topics; box.innerHTML='';
+  Object.keys(cache).forEach(k=>{
+    if(cache[k].parent===currentSubject){
+      box.innerHTML+=`<div class='card'>${k}<br>
+      <button onclick="openTopic('${k}')">Open</button>
+      <button onclick="del('${k}')">Delete</button></div>`;
+    }
+  });
+}
+function addTopic(){
+  let v=topicInput.value.trim(); if(!v) return;
+  saveItem({id:v,parent:currentSubject,text:'',images:[]});
+  loadAll(); topicInput.value='';
+}
+
+// NOTES
+function openTopic(t){
+  currentTopic=t;
+  topicsPage.classList.add('hidden'); notesPage.classList.remove('hidden');
+  notesTitle.innerText=t;
+  loadNote();
+}
+function loadNote(){
+  let n=cache[currentTopic];
+  noteText.value=n.text||'';
+  images.innerHTML='';
+  (n.images||[]).forEach((src,i)=>{
+    images.innerHTML+=`<div class='card'><img src='${src}'><button onclick="delImg(${i})">Delete</button></div>`;
+  });
+}
+function saveNote(){
+  let n=cache[currentTopic];
+  n.text=noteText.value;
+  saveItem(n);
+  status.innerText='Saved';
+}
+
+function addImage(e){
+  status.innerText='Uploading...';
+  let files=e.target.files;
+
+  Array.from(files).forEach(file=>{
+    let r=new FileReader();
+
+    r.onload=function(){
+      let n=cache[currentTopic];
+      n.images=n.images||[];
+
+      // ADD IMAGE IMMEDIATELY TO UI (fix your problem)
+      let imgPreview = document.createElement('div');
+      imgPreview.className='card';
+      imgPreview.innerHTML = `<img src='${r.result}'>`;
+      document.getElementById('images').prepend(imgPreview);
+
+      // SAVE IN DATABASE
+      n.images.push(r.result);
+      saveItem(n);
+
+      status.innerText='✅ Image added instantly';
+    }
+
+    r.readAsDataURL(file);
+  });
+}
+    }
+    r.readAsDataURL(f);
+  });
+}
+
+function delImg(i){
+  let n=cache[currentTopic];
+  n.images.splice(i,1);
+  saveItem(n);
+  loadAll();
+}
+
+function del(id){
+  let tx=db.transaction("data","readwrite");
+  tx.objectStore("data").delete(id);
+  loadAll();
+}
+
+function goHome(){topicsPage.classList.add('hidden');home.classList.remove('hidden');}
+function goTopics(){notesPage.classList.add('hidden');topicsPage.classList.remove('hidden');}
+</script>
+</body>
+</html>
