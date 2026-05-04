@@ -1,0 +1,181 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Study Notes Pro</title>
+<style>
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff;
+}
+header {
+  padding: 15px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: bold;
+}
+.container { padding: 15px; }
+.card {
+  background: rgba(255,255,255,0.12);
+  border-radius: 14px;
+  padding: 15px;
+  margin-bottom: 12px;
+  backdrop-filter: blur(12px);
+}
+button {
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #ff7eb3;
+  color: white;
+  cursor: pointer;
+  margin: 4px 4px 0 0;
+}
+input, textarea {
+  width: 100%;
+  padding: 8px;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: none;
+}
+.hidden { display: none; }
+img { max-width: 100%; margin-top: 10px; border-radius: 10px; }
+.search { margin-bottom: 10px; }
+.dark { background:#111 !important; color:#fff; }
+</style>
+</head>
+<body>
+<header>📚 Study Notes Pro</header>
+<div class="container"><!-- HOME --><div id="home">
+  <input class="search" id="searchSubject" placeholder="Search subject" oninput="renderSubjects()">
+  <input id="subjectInput" placeholder="Add subject">
+  <button onclick="addSubject()">Add</button>
+  <button onclick="toggleDark()">🌙</button>
+  <button onclick="exportData()">Backup</button>
+  <div id="subjects"></div>
+</div><!-- TOPICS --><div id="topicsPage" class="hidden">
+  <button onclick="goHome()">⬅</button>
+  <h3 id="topicTitle"></h3>
+  <input id="topicInput" placeholder="Add topic">
+  <button onclick="addTopic()">Add</button>
+  <div id="topics"></div>
+</div><!-- NOTES --><div id="notesPage" class="hidden">
+  <button onclick="goTopics()">⬅</button>
+  <h3 id="notesTitle"></h3>  <textarea id="noteText" placeholder="Write notes..."></textarea>  <!-- MULTIPLE IMAGE FIX -->  <input type="file" accept="image/*" multiple onchange="addImage(event)"><button onclick="saveNote()">Save</button>
+
+  <h4>Background</h4>
+  <button onclick="setBg('linear-gradient(135deg,#667eea,#764ba2)')">Default</button>
+  <button onclick="setBg('#ff7eb3')">Pink</button>
+  <button onclick="setBg('#00c9a7')">Green</button>
+  <button onclick="setBg('#111')">Dark</button>  <div id="images"></div>
+</div></div><script>
+let data = JSON.parse(localStorage.getItem('studyData')) || {};
+let currentSubject=null, currentTopic=null;
+
+function save(){ localStorage.setItem('studyData', JSON.stringify(data)); }
+
+// SUBJECTS
+function renderSubjects(){
+  let s=document.getElementById('searchSubject').value.toLowerCase();
+  let box=document.getElementById('subjects'); box.innerHTML='';
+  Object.keys(data).filter(x=>x.toLowerCase().includes(s)).forEach(sub=>{
+    box.innerHTML+=`<div class='card'>${sub}<br>
+    <button onclick="openSubject('${sub}')">Open</button>
+    <button onclick="deleteSubject('${sub}')">Delete</button></div>`;
+  });
+}
+function addSubject(){
+  let v=subjectInput.value.trim(); if(!v) return;
+  data[v]={}; save(); renderSubjects(); subjectInput.value='';
+}
+function deleteSubject(s){ delete data[s]; save(); renderSubjects(); }
+
+// TOPICS
+function openSubject(s){
+  currentSubject=s;
+  home.classList.add('hidden'); topicsPage.classList.remove('hidden');
+  topicTitle.innerText=s; renderTopics();
+}
+function goHome(){ topicsPage.classList.add('hidden'); home.classList.remove('hidden'); }
+
+function renderTopics(){
+  let box=document.getElementById('topics'); box.innerHTML='';
+  Object.keys(data[currentSubject]).forEach(t=>{
+    box.innerHTML+=`<div class='card'>${t}<br>
+    <button onclick="openTopic('${t}')">Open</button>
+    <button onclick="deleteTopic('${t}')">Delete</button></div>`;
+  });
+}
+function addTopic(){
+  let v=topicInput.value.trim(); if(!v) return;
+  data[currentSubject][v]={text:'',images:[],bg:''};
+  save(); renderTopics(); topicInput.value='';
+}
+function deleteTopic(t){ delete data[currentSubject][t]; save(); renderTopics(); }
+
+// NOTES
+function openTopic(t){
+  currentTopic=t;
+  topicsPage.classList.add('hidden'); notesPage.classList.remove('hidden');
+  notesTitle.innerText=t; loadNote();
+}
+function goTopics(){ notesPage.classList.add('hidden'); topicsPage.classList.remove('hidden'); }
+
+function loadNote(){
+  let n=data[currentSubject][currentTopic];
+  noteText.value=n.text;
+  document.body.style.background=n.bg || 'linear-gradient(135deg,#667eea,#764ba2)';
+
+  let imgDiv=document.getElementById('images'); imgDiv.innerHTML='';
+  n.images.forEach((src,i)=>{
+    imgDiv.innerHTML+=`<div><img src='${src}'>
+    <button onclick="deleteImg(${i})">Delete</button></div>`;
+  });
+}
+
+function saveNote(){
+  data[currentSubject][currentTopic].text=noteText.value;
+  save(); alert('Saved');
+}
+
+// MULTI IMAGE SUPPORT
+function addImage(e){
+  let files=e.target.files;
+  Array.from(files).forEach(file=>{
+    let r=new FileReader();
+    r.onload=function(){
+      data[currentSubject][currentTopic].images.push(r.result);
+      save(); loadNote();
+    }
+    r.readAsDataURL(file);
+  });
+}
+
+function deleteImg(i){
+  data[currentSubject][currentTopic].images.splice(i,1);
+  save(); loadNote();
+}
+
+// BG
+function setBg(bg){
+  data[currentSubject][currentTopic].bg=bg;
+  document.body.style.background=bg;
+  save();
+}
+
+// DARK MODE
+function toggleDark(){ document.body.classList.toggle('dark'); }
+
+// EXPORT
+function exportData(){
+  let blob=new Blob([JSON.stringify(data)],{type:'application/json'});
+  let a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='backup.json'; a.click();
+}
+
+renderSubjects();
+</script></body>
+</html>
